@@ -16,6 +16,7 @@
 #import "KKJSBridgeSwizzle.h"
 #import "KKJSBridgeWeakProxy.h"
 #import "KKWebViewCookieManager.h"
+#import "KKJSBridgeEngine.h"
 
 typedef CFHTTPMessageRef (*KKJSBridgeURLResponseGetHTTPResponse)(CFURLRef response);
 
@@ -27,6 +28,7 @@ static NSString * const kKKJSBridgeOpenUrlRequestIdRegex = @"^.*#%5E%5E%5E%5E(\\
 static NSString * const kKKJSBridgeOpenUrlRequestIdPairRegex = @"^.*(#%5E%5E%5E%5E\\d+%5E%5E%5E%5E)$";
 static NSString * const kKKJSBridgeAjaxRequestHeaderAC = @"Access-Control-Request-Headers";
 static NSString * const kKKJSBridgeAjaxResponseHeaderAC = @"Access-Control-Allow-Headers";
+
 
 @interface KKJSBridgeAjaxURLProtocol () <NSURLSessionDelegate, KKJSBridgeAjaxDelegate>
 
@@ -51,7 +53,10 @@ static NSString * const kKKJSBridgeAjaxResponseHeaderAC = @"Access-Control-Allow
     if ([request.URL.absoluteString containsString:kKKJSBridgeRequestId]) {
         return YES;
     }
-  
+
+    if ([KKJSBridgeCustomInterceptRequest.shareInstance canInitWithRequest:request]) {
+        return YES;
+    }
     return NO;
 }
 
