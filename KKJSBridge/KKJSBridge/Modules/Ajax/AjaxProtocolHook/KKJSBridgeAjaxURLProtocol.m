@@ -182,6 +182,40 @@ static NSString * const kKKJSBridgeAjaxResponseHeaderAC = @"Access-Control-Allow
     [self.client URLProtocol:self didLoadData:data];
 }
 
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response newRequest:(NSURLRequest *)newRequest completionHandler:(void (^)(NSURLRequest *))completionHandler
+{
+    NSMutableURLRequest *    redirectRequest;
+
+    // The new request was copied from our old request, so it has our magic property.  We actually
+    // have to remove that so that, when the client starts the new request, we see it.  If we
+    // don't do this then we never see the new request and thus don't get a chance to change
+    // its caching behaviour.
+    //
+    // We also cancel our current connection because the client is going to start a new request for
+    // us anyway.
+
+    assert([[self class] propertyForKey:kKKJSBridgeNSURLProtocolKey inRequest:newRequest] != nil);
+    
+    NSLog(@"willPerformHTTPRedirection will redirect from %@ to %@", [response URL], [newRequest URL]);
+    
+    redirectRequest = [newRequest mutableCopy];
+    [[self class] removePropertyForKey:kKKJSBridgeNSURLProtocolKey inRequest:redirectRequest];
+    
+    // Tell the client about the redirect.
+    
+    [[self client] URLProtocol:self wasRedirectedToRequest:redirectRequest redirectResponse:response];
+    
+    // Stop our load.  The CFNetwork infrastructure will create a new NSURLProtocol instance to run
+    // the load of the redirect.
+    
+    // The following ends up calling -URLSession:task:didCompleteWithError: with NSURLErrorDomain / NSURLErrorCancelled,
+    // which specificallys traps and ignores the error.
+    
+    [self.customTask cancel];
+
+    [[self client] URLProtocol:self didFailWithError:[NSError errorWithDomain:NSCocoaErrorDomain code:NSUserCancelledError userInfo:nil]];
+}
+
 #pragma mark - KKJSBridgeAjaxDelegate - 处理来自外部网络库的数据
 - (void)JSBridgeAjax:(id<KKJSBridgeAjaxDelegate>)ajax didReceiveResponse:(NSURLResponse *)response {
     if (!response) {
