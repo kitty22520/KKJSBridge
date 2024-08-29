@@ -123,7 +123,8 @@ static NSString * const kKKJSBridgeAjaxResponseHeaderAC = @"Access-Control-Allow
         // 实际请求代理外部网络库处理
         self.customTask = [KKJSBridgeConfig.ajaxDelegateManager dataTaskWithRequest:mutableReqeust callbackDelegate:self];
     } else {
-        NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:(id<NSURLSessionDelegate>)[KKJSBridgeWeakProxy proxyWithTarget:self] delegateQueue:nil];
+//        NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration] delegate:(id<NSURLSessionDelegate>)[KKJSBridgeWeakProxy proxyWithTarget:self] delegateQueue:nil];
+        NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration ephemeralSessionConfiguration] delegate:(id<NSURLSessionDelegate>)[KKJSBridgeWeakProxy proxyWithTarget:self] delegateQueue:nil];
         self.customTask = [session dataTaskWithRequest:mutableReqeust];
     }
     
@@ -131,6 +132,8 @@ static NSString * const kKKJSBridgeAjaxResponseHeaderAC = @"Access-Control-Allow
 }
 
 - (void)stopLoading {
+    
+    NSLog(@"[KKJSBridgeAjaxURLProtocol] stopLoading:%@", self.request);
     if (self.customTask != nil) {
         [self.customTask  cancel];
         self.customTask = nil;
@@ -165,7 +168,8 @@ static NSString * const kKKJSBridgeAjaxResponseHeaderAC = @"Access-Control-Allow
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
     // 清除缓存
     [self clearRequestBody];
-    
+    NSLog(@"[KKJSBridgeAjaxURLProtocol] didCompleteWithError:%@", self.request);
+
     if (error) {
         [self.client URLProtocol:self didFailWithError:error];
     } else {
@@ -182,39 +186,39 @@ static NSString * const kKKJSBridgeAjaxResponseHeaderAC = @"Access-Control-Allow
     [self.client URLProtocol:self didLoadData:data];
 }
 
-- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response newRequest:(NSURLRequest *)newRequest completionHandler:(void (^)(NSURLRequest *))completionHandler
-{
-    NSMutableURLRequest *    redirectRequest;
-
-    // The new request was copied from our old request, so it has our magic property.  We actually
-    // have to remove that so that, when the client starts the new request, we see it.  If we
-    // don't do this then we never see the new request and thus don't get a chance to change
-    // its caching behaviour.
-    //
-    // We also cancel our current connection because the client is going to start a new request for
-    // us anyway.
-
-    assert([[self class] propertyForKey:kKKJSBridgeNSURLProtocolKey inRequest:newRequest] != nil);
-    
-    NSLog(@"willPerformHTTPRedirection will redirect from %@ to %@", [response URL], [newRequest URL]);
-    
-    redirectRequest = [newRequest mutableCopy];
-    [[self class] removePropertyForKey:kKKJSBridgeNSURLProtocolKey inRequest:redirectRequest];
-    
-    // Tell the client about the redirect.
-    
-    [[self client] URLProtocol:self wasRedirectedToRequest:redirectRequest redirectResponse:response];
-    
-    // Stop our load.  The CFNetwork infrastructure will create a new NSURLProtocol instance to run
-    // the load of the redirect.
-    
-    // The following ends up calling -URLSession:task:didCompleteWithError: with NSURLErrorDomain / NSURLErrorCancelled,
-    // which specificallys traps and ignores the error.
-    
-    [self.customTask cancel];
-
-    [[self client] URLProtocol:self didFailWithError:[NSError errorWithDomain:NSCocoaErrorDomain code:NSUserCancelledError userInfo:nil]];
-}
+//- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response newRequest:(NSURLRequest *)newRequest completionHandler:(void (^)(NSURLRequest *))completionHandler
+//{
+//    NSMutableURLRequest *    redirectRequest;
+//
+//    // The new request was copied from our old request, so it has our magic property.  We actually
+//    // have to remove that so that, when the client starts the new request, we see it.  If we
+//    // don't do this then we never see the new request and thus don't get a chance to change
+//    // its caching behaviour.
+//    //
+//    // We also cancel our current connection because the client is going to start a new request for
+//    // us anyway.
+//
+////    assert([[self class] propertyForKey:kKKJSBridgeNSURLProtocolKey inRequest:newRequest] != nil);
+//    
+//    NSLog(@"[KKJSBridgeAjaxURLProtocol] willPerformHTTPRedirection will redirect from %@ to %@", [response URL], [newRequest URL]);
+//    
+//    redirectRequest = [newRequest mutableCopy];
+//    [[self class] removePropertyForKey:kKKJSBridgeNSURLProtocolKey inRequest:redirectRequest];
+//    
+//    // Tell the client about the redirect.
+//    
+//    [[self client] URLProtocol:self wasRedirectedToRequest:redirectRequest redirectResponse:response];
+//    
+//    // Stop our load.  The CFNetwork infrastructure will create a new NSURLProtocol instance to run
+//    // the load of the redirect.
+//    
+//    // The following ends up calling -URLSession:task:didCompleteWithError: with NSURLErrorDomain / NSURLErrorCancelled,
+//    // which specificallys traps and ignores the error.
+//    
+//    [self.customTask cancel];
+//
+//    [[self client] URLProtocol:self didFailWithError:[NSError errorWithDomain:NSCocoaErrorDomain code:NSUserCancelledError userInfo:nil]];
+//}
 
 #pragma mark - KKJSBridgeAjaxDelegate - 处理来自外部网络库的数据
 - (void)JSBridgeAjax:(id<KKJSBridgeAjaxDelegate>)ajax didReceiveResponse:(NSURLResponse *)response {
@@ -238,6 +242,19 @@ static NSString * const kKKJSBridgeAjaxResponseHeaderAC = @"Access-Control-Allow
     } else {
         [self.client URLProtocolDidFinishLoading:self];
     }
+}
+
+- (void)JSBridgeAjax:(id<KKJSBridgeAjaxDelegate>)ajax performHTTPRedirection:(NSHTTPURLResponse *)response newRequest:(NSURLRequest *)newRequest
+{
+    NSLog(@"[KKJSBridgeAjaxURLProtocol] performHTTPRedirection:%@", self.request);
+    
+    [self clearRequestBody];
+    
+    [[self client] URLProtocol:self wasRedirectedToRequest:newRequest redirectResponse:response];
+    
+    [self.customTask cancel];
+    
+    [[self client] URLProtocol:self didFailWithError:[NSError errorWithDomain:NSCocoaErrorDomain code:NSUserCancelledError userInfo:nil]];
 }
 
 #pragma mark - 请求id相关
