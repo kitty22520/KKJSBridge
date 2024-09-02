@@ -22,7 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)JSBridgeAjax:(id<KKJSBridgeAjaxDelegate>)ajax didReceiveResponse:(NSURLResponse *)response;
 - (void)JSBridgeAjax:(id<KKJSBridgeAjaxDelegate>)ajax didReceiveData:(NSData *)data;
 - (void)JSBridgeAjax:(id<KKJSBridgeAjaxDelegate>)ajax didCompleteWithError:(NSError * _Nullable)error;
-
+- (void)JSBridgeAjax:(id<KKJSBridgeAjaxDelegate>)ajax performHTTPRedirection:(NSHTTPURLResponse *)response newRequest:(NSURLRequest *)newRequest;
 @end
 
 /**
